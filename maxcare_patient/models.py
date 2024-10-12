@@ -2,7 +2,7 @@ from django.db import models
 from django.core.validators import MinValueValidator
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
-from datetime import date
+from datetime import datetime
 
 
 class CustomUserManager(BaseUserManager):
@@ -20,6 +20,7 @@ class CustomUserManager(BaseUserManager):
     def create_superuser(self, email, password=None, **extra_fields):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
+        extra_fields.setdefault("type","ADMIN")
         return self.create_user(email, password, **extra_fields)
 
 
@@ -27,8 +28,8 @@ class MyUser(AbstractUser):
     class Types(models.TextChoices): 
         PATIENT = "PATIENT" , "patient"
         DOCTOR = "DOCTOR" , "doctor"
-        ADMIN = "ADMIN" , "admin"
-    type = models.CharField(max_length = 8 , choices = Types.choices, default = Types.PATIENT) 
+        ADMIN = "RECEPTIONIST" , "receptionist"
+    type = models.CharField(max_length = 15 , choices = Types.choices, default = Types.PATIENT) 
     choices_of_marital_status = {
         "UM":"Unmarrid",
         "MA":"Married",
@@ -51,7 +52,7 @@ class MyUser(AbstractUser):
 
 
     USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = []
+    REQUIRED_FIELDS = ['first_name','phone_number','gender','address','city','state','pincode','dob']
 
     objects = CustomUserManager()
 
@@ -95,13 +96,14 @@ class Patient(MyUser):
     height = models.FloatField(null=False)
     daibitic = models.BooleanField(default=False,null=True)
     blood_grp = models.CharField(max_length=3,null=False, choices=choices_of_blood)
-    allergy = models.CharField(max_length=20)
-    med_issue = models.CharField(max_length=225)
+    allergy = models.CharField(max_length=20,null=True )
+    med_issue = models.CharField(max_length=225,null=True)
 
     objects = PatientManager()
 
     def save(self , *args , **kwargs): 
         self.type = MyUser.Types.PATIENT 
+        self.set_password(self.password)
         self.is_patient = True
         return super().save(*args , **kwargs) 
 
@@ -130,11 +132,44 @@ class Doctor(MyUser):
     specialization = models.CharField(max_length=50, null=False, blank=False)
     experience = models.IntegerField(validators=[MinValueValidator(2)])
     doc_img = models.ImageField(max_length=500,upload_to='doctors')
-
+    doc_fee = models.IntegerField(default=2000)
 
     objects = DoctorManager()
 
     def save(self , *args , **kwargs): 
         self.type = MyUser.Types.DOCTOR 
         self.is_doctor = True
+        self.set_password(self.password)
         return super().save(*args , **kwargs) 
+    
+class Appointments(models.Model):
+    choices_of_status = {
+        'Pending':'PENDING',
+        'Request Initiated':'REQUEST INITIATED',
+        'Confirmed':'CONFIRMED',
+        'Rejected':'REJECTED',
+    }
+    patient = models.ForeignKey(Patient,on_delete=models.RESTRICT)
+    doctor = models.ForeignKey(Doctor, on_delete=models.RESTRICT)
+    symptoms = models.TextField(max_length=510)
+    symptoms_date = models.DateField()
+    request_date = models.DateTimeField(default=datetime.now)
+    prefered_date = models.DateField()
+    status = models.CharField(max_length=20,default='Pending',choices=choices_of_status)
+    transaction_id = models.CharField(max_length=15,null=True)
+    admin_verf = models.BooleanField(default=0)
+    doc_verf = models.BooleanField(default=0)
+    admin_approval_datetime = models.DateTimeField(null=True)
+    doctor_approval_datetime = models.DateTimeField(null=True)
+    btn_class = models.CharField(max_length=50,default='d-none')
+
+
+class sidebar(models.Model):
+    name = models.CharField(max_length=25)
+    url = models.CharField(max_length=25)
+    priority = models.IntegerField()
+    visibility = models.CharField(max_length=15,choices=MyUser.Types.choices, default=MyUser.Types.ADMIN)
+    icon = models.CharField(max_length=50)
+
+    class Meta:
+        unique_together = ('visibility','priority')

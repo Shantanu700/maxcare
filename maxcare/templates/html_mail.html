@@ -1,32 +1,108 @@
 <!DOCTYPE html>
-<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap" rel="stylesheet">
-    <style>
-        .head {
-            background-color: #f8f3eb;
-            display: flex;
-            align-items: center;
-            /* padding-left: 20px;
-            padding-top: 0px; */
-            color: #ff4136;
-            font-size: 22px;
-            margin: 1px auto;
-        }
-        * {
-            font-family: "Roboto", sans-serif;
-            font-weight: 200;
-            font-style: normal;
-        }
-    </style>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MAXCARE Email Template</title>
+<style type="text/css">
+	body {
+		margin: 0;
+		background-color: #cccccc;
+	}
+	table {
+		border-spacing: 0;
+	}
+	td {
+		padding: 0;
+	}
+	img {
+		border: 0;
+	}
+    .wrapper {
+        width: 100%;
+        table-layout: fixed;
+        background-color: #cccccc;
+    }
+    .main {
+        width: 100%;
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #f7f1e6;
+        border-spacing: 0px;
+        font-family: sans-serif;
+        color: #e74424;
+        font-size: 40px;
+        font-weight: 100px;
+    }
+    .content {
+        width: 100%;
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #ffffff;
+        border-spacing: 0px;
+        font-family: sans-serif;
+        color: #808080;
+        font-size: 20px;
+        /* font-weight: 100px; */
+    }
+    td img{
+        display: block;
+    }
+    
+
+</style>
 </head>
 <body>
-    <div class="head"><div class="head"><img style="margin-right: 10px;" src="https://cdn-icons-png.flaticon.com/512/119/119060.png" alt="hospital_image" height="50px"><h1>MAXCARE</h1></div></div>
-    <div>Hi, {{ username }} </div>
+
+<center class="wrapper">
+    <table class="main" width="100%">
+<!-- TOP BORDER -->
+        <tr>
+            <td height="8" style="background-color: #e74424;"></td>
+        </tr>
+
+<!-- LOGO SECTION -->
+        <tr>
+            <td>
+                <table width="100%" style="padding:10px 25px;">
+                    <tr>
+                        <td>
+                            MAXCARE
+                        </td>
+                        <td align="center">
+                            <img src="https://cdn-icons-png.flaticon.com/512/119/119060.png" height="50px" alt="hospital image">
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+
+<!-- BANNER IMAGE -->
+        <tr>
+            <td><img src="https://img.freepik.com/free-photo/heart-shape-stethoscope-medical-subjects_23-2150254044.jpg" alt="banner image" width="600px" style="max-width: 100%;"></td>
+        </tr>
+
+<!-- THREE COLUMN SECTION -->
+
+        <tr >
+            <td class="content" width="100%" style="padding:10px 25px;"> Hi {{ username }}, <br><br>
+
+                Thanks for getting in touch. <br><br>
+                
+                This is a confirmation email regarding your appointment at Maxcare with Dr. {{ doctor_first_name }} {{ doctor_last_name }} on {{ date }}, {{ day }}. Please be available 30 minutes prior to your appointed time. <br><br>
+                
+                Regards, <br><br>
+                
+                Max Care Pvt. Ltd. <br><br>
+                
+                8528843561  </td>
+        </tr>
+
+    </table>
+</center>
+
+
+
 </body>
 </html>
+

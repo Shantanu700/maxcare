@@ -20,7 +20,7 @@ class CustomUserManager(BaseUserManager):
     def create_superuser(self, email, password=None, **extra_fields):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
-        extra_fields.setdefault("type","ADMIN")
+        extra_fields.setdefault("type",MyUser.Types.ADMIN)
         return self.create_user(email, password, **extra_fields)
 
 
@@ -146,8 +146,10 @@ class Appointments(models.Model):
     choices_of_status = {
         'Pending':'PENDING',
         'Request Initiated':'REQUEST INITIATED',
+        'Paid':'PAID',
         'Confirmed':'CONFIRMED',
         'Rejected':'REJECTED',
+        'Refunded':'REFUNDED',
     }
     patient = models.ForeignKey(Patient,on_delete=models.RESTRICT)
     doctor = models.ForeignKey(Doctor, on_delete=models.RESTRICT)
@@ -162,6 +164,7 @@ class Appointments(models.Model):
     admin_approval_datetime = models.DateTimeField(null=True)
     doctor_approval_datetime = models.DateTimeField(null=True)
     btn_class = models.CharField(max_length=50,default='d-none')
+    rejection_remark = models.TextField(max_length=510,null=True)
 
 
 class sidebar(models.Model):

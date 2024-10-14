@@ -13,7 +13,8 @@ urlpatterns = [
     path("logout/", views.signout, name="logout"),
     path("info/", views.info, name="info"),
     path("side_panel/", views.side_panel, name="side"),
-    path("book_appointments/", views.book_appointments, name="book appointments"),
+    path("book_appointments/", views.manage_appointments, name="manage appointments"),
+    path("analytics/", views.get_data, name="analytics"),
     path("test/", views.test, name="test"),
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

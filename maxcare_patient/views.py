@@ -4,6 +4,7 @@ import json
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 import re
+from django.utils.html import strip_tags
 import magic
 from django.conf import settings
 from django.shortcuts import get_object_or_404
@@ -11,7 +12,7 @@ from maxcare_patient.models import *
 from django.contrib.auth import authenticate, login, logout
 import os
 from django.shortcuts import redirect
-from datetime import date,datetime
+from datetime import date,datetime,timedelta
 
 
 def patient_registration(request):
@@ -29,23 +30,23 @@ def patient_registration(request):
             return JsonResponse({"status":"Email is required"},status=422)
         if not bool(re.match(r"[a-zA-Z0-9_\-\.]+[@][a-z]+[\.][a-z]{2,3}",e_mail)):
             print('err in email format')
-            return JsonResponse({"Err":"Invalid Email, should in the form abc@xyz.com"},status=422)
+            return JsonResponse({"status":"Invalid Email, should in the form abc@xyz.com"},status=422)
         mobile = data.get('mobile')
         if not (mobile.isnumeric() and len(mobile) == 10):
             print(mobile)
             print('err in mobile')
-            return JsonResponse({"Err":"Invalid Phone, shoud be of 10 digits and numeric"},status=422)
+            return JsonResponse({"status":"Invalid Phone, shoud be of 10 digits and numeric"},status=422)
         passwd_1 = data.get('passwd1')
         passwd_2 = data.get('passwd2')
         if not (passwd_1 and passwd_2):
             print('err in Password')
-            return JsonResponse({"Err":"Both passwords are required"},status=422)
+            return JsonResponse({"status":"Both passwords are required"},status=422)
         if passwd_1 != passwd_2:
             print('err in Password')
             return JsonResponse({"status":"passwords do not match"}, status=409)
         if not bool(re.match(r"^(?=.*[A-Z])(?=.*[!@#$&*])(?=.*[0-9])(?=.*[a-z]).{8,16}$",passwd_1)):
             print('err in Password')
-            return JsonResponse({"Err":"Weak Password, should include an upper case, a number, an special Symbol and should be of length between 8 to 16"},status=400)
+            return JsonResponse({"status":"Weak Password, should include an upper case, a number, an special Symbol and should be of length between 8 to 16"},status=400)
         gender = data.get('gender')
         if not gender:
             print('err in Gender')
@@ -97,7 +98,7 @@ def patient_registration(request):
             return JsonResponse({"status":"User already exists with this email"},status=409)
         pat = Patient(first_name=first_name,last_name=last_name,email=e_mail,password=passwd_1,phone_number=mobile,gender=gender,address=address,dob=dob,marital_status=marital_status,emergency_contact=emergency_contact,weight=weight,height=height,daibitic=daibitic,blood_grp=blood_grp,pincode=pincode,allergy=allergy,med_issue=med_issue,city=city,state=state)
         pat.save()
-        return JsonResponse({'status':'Patient registered Succesfully'})
+        return JsonResponse({'status':'Patient registered Succesfully','route':'/patient/patientappointment'})
     return JsonResponse({"status":"Invalid request method"},status=405)
 
 def doctor_registration(request):
@@ -106,24 +107,24 @@ def doctor_registration(request):
         print(data)
         first_name = data.get('first_name')
         if not first_name.isalpha():
-            return JsonResponse({"Err":"Invalid First name, should be in alphabets"}, status=422)
+            return JsonResponse({"status":"Invalid First name, should be in alphabets"}, status=422)
         last_name = data.get('last_name')
         e_mail = data.get('email')
         if not e_mail:
-            return JsonResponse({"Err":"Email is required"},status=422)
+            return JsonResponse({"status":"Email is required"},status=422)
         if not bool(re.match(r"[a-zA-Z0-9_\-\.]+[@][a-z]+[\.][a-z]{2,3}",e_mail)):
-            return JsonResponse({"Err":"Invalid Email, should in the form abc@xyz.com"},status=422)
+            return JsonResponse({"status":"Invalid Email, should in the form abc@xyz.com"},status=422)
         mobile = data.get('mobile')
         if not (mobile.isnumeric() and len(mobile) == 10):
-            return JsonResponse({"Err":"Invalid Phone, shoud be of 10 digits and numeric"},status=422)
+            return JsonResponse({"status":"Invalid Phone, shoud be of 10 digits and numeric"},status=422)
         passwd_1 = data.get('passwd1')
         passwd_2 = data.get('passwd2')
         if not (passwd_1 and passwd_2):
-            return JsonResponse({"Err":"Both passwords are required"},status=422)
+            return JsonResponse({"status":"Both passwords are required"},status=422)
         if passwd_1 != passwd_2:
             return JsonResponse({"status":"passwords do not match"}, status=409)
         if not bool(re.match(r"^(?=.*[A-Z])(?=.*[!@#$&*])(?=.*[0-9])(?=.*[a-z]).{8,16}$",passwd_1)):
-            return JsonResponse({"Err":"Weak Password, should include an upper case, a number, an special Symbol and should be of length between 8 to 16"},status=400)
+            return JsonResponse({"status":"Weak Password, should include an upper case, a number, an special Symbol and should be of length between 8 to 16"},status=400)
         gender = data.get('gender')
         if not gender:
             return JsonResponse({'status':'GENDER is required'},status=422)
@@ -173,7 +174,7 @@ def doctor_registration(request):
             return JsonResponse({"status":"User already exists with this email"},status=409)
         doc = Doctor(first_name=first_name,last_name=last_name,email=e_mail,password=passwd_1,phone_number=mobile,gender=gender,address=address,dob=dob,marital_status=marital_status,pincode=pincode,degree=degree,specialization=specialization,experience=experience,doc_img=doc_img,city=city,state=state)
         doc.save()
-        return JsonResponse({'status':'Doctor registered Succesfully'})
+        return JsonResponse({'status':'Doctor registered Succesfully','route':'/doctor/drpendingappointments'})
     return JsonResponse({"status":"Invalid request method"},status=405)
 
 def signin(request):
@@ -195,11 +196,14 @@ def signin(request):
     if request.method == 'GET':
         if request.user.is_authenticated:
             if request.user.is_doctor:
-                return JsonResponse({'route':'/doctor'})
+                return JsonResponse({'route':'/doctor/drpendingAppointments'})
             elif request.user.is_patient:
                 return JsonResponse({'route':'/patient/patientappointment'})
             elif request.user.is_superuser:
                 return JsonResponse({'route':'/receptionist/appointments'})
+            else:
+                return JsonResponse({'route':'/login'})
+        return JsonResponse({"status":"No User was autherized"},status=400)
     return JsonResponse({"status":"Invalid request method"},status=405)
 
 def signout(request):
@@ -207,8 +211,8 @@ def signout(request):
         if request.user.is_authenticated:
             logout(request)
             return JsonResponse({"status":"Logged out Successfully",'route':'/login'},status=200 )
-        return JsonResponse({"Err":"No any User was autherized"},status=400)
-    return JsonResponse({"Err":"Invalid request method"},status=405)
+        return JsonResponse({"status":"No User was autherized"},status=400)
+    return JsonResponse({"status":"Invalid request method"},status=405)
 
 def info(request):
     if request.method == 'GET':
@@ -224,13 +228,44 @@ def side_panel(request):
             elif request.user.is_superuser:
                 data = sidebar.objects.filter(visibility=MyUser.Types.ADMIN).values('name','url','icon').order_by('priority')
                 return JsonResponse(list(data),safe=False)
-            return JsonResponse({'status':'You are not patient'},status=422)
+            elif request.user.is_doctor:
+                data = sidebar.objects.filter(visibility=MyUser.Types.DOCTOR).values('name','url','icon').order_by('priority')
+                return JsonResponse(list(data),safe=False)
+            return JsonResponse({'status':'You are no one here'},status=422)
         return JsonResponse({'status':'You are not authorized'},status=401)
     return JsonResponse({'status':'Invalid request method'},status=405)
 
+def get_data(request):
+    if request.method == 'GET':
+        if request.user.is_authenticated:
+            if request.user.is_superuser:
+                data = request.GET
+                query_date = data.get('date')
+                if query_date is None or not query_date:
+                    query_date = datetime.today()
+                else:
+                    query_date = query_date.split('-')
+                    query_date = date(int(query_date[0]),int(query_date[1]),int(query_date[2]))
+                date_list = [['Date','Total Requests','Accepted by Receptionist','Rejected by Receptionist','Accepted by Doctor','Refunded']]
+                for i in range(5):
+                    find_date = query_date - timedelta(days=i)
+                    total_queries = Appointments.objects.filter(request_date__date=find_date).count()
+                    accepted_by_admin = Appointments.objects.filter(Q(request_date__date=find_date) & (Q(status='Request Initiated') | Q(status='Paid'))).count()
+                    rejected_by_admin = Appointments.objects.filter(Q(request_date__date=find_date) & Q(status='Rejected')).count()
+                    accepted_by_doc = Appointments.objects.filter(Q(request_date__date=find_date) & Q(status='Confirmed')).count()
+                    refunded_by_doc = Appointments.objects.filter(Q(request_date__date=find_date) & Q(status='Refunded')).count()
+                    find_date_list = [find_date.strftime("%d-%m-%Y"),total_queries,accepted_by_admin,rejected_by_admin,accepted_by_doc,refunded_by_doc]
+                    date_list.append(find_date_list)
+                return JsonResponse(date_list,safe=False)
+            return JsonResponse({'status':"You don't have access to update any thing here"},status=401)
+        return JsonResponse({'status':'Unauthorised'},status=401)
+    return JsonResponse({"status":"Invalid request method"},status=400)
 
 
-def book_appointments(request):
+                 
+
+
+def manage_appointments(request):
     if request.method == 'GET':
         if request.user.is_authenticated:
             if request.user.is_patient:
@@ -238,9 +273,16 @@ def book_appointments(request):
                 return JsonResponse(list(data),safe=False)
             elif request.user.is_superuser:
                 requested_status = request.GET.get('status')
-                if not Appointments.objects.filter(status=requested_status).exists():
-                    return JsonResponse({'status':'Invalid status'},status=400)
-                data = Appointments.objects.filter(status=requested_status).values('patient__first_name','patient__last_name','doctor__first_name','doctor__last_name','prefered_date','status','symptoms','request_date').order_by('-request_date')
+                if requested_status.title() == 'Request Initiated':
+                    data = Appointments.objects.filter(Q(status=requested_status) | Q(status='Paid')).values('id','patient__first_name','patient__last_name','doctor__first_name','doctor__last_name','prefered_date','status','symptoms','request_date').order_by('-request_date')
+                    return JsonResponse(list(data),safe=False)
+                data = Appointments.objects.filter(status=requested_status).values('id','patient__first_name','patient__last_name','doctor__first_name','doctor__last_name','prefered_date','status','symptoms','request_date').order_by('-request_date')
+                return JsonResponse(list(data),safe=False)
+            elif request.user.is_doctor:
+                requested_status = request.GET.get('status')
+                if requested_status.title() not in ['Paid','Confirmed']:
+                    return JsonResponse({'status':'Invalid Status'},status=422)    
+                data = Appointments.objects.filter(status=requested_status, doctor_id=request.user.id).values('id','patient__first_name','patient__last_name','doctor__first_name','doctor__last_name','prefered_date','status','symptoms','request_date').order_by('-request_date')
                 return JsonResponse(list(data),safe=False)
             return JsonResponse({'status':'You are no one here'},status=400)
         return JsonResponse({'status':'Unautherised access'},status=401)
@@ -270,13 +312,14 @@ def book_appointments(request):
                 appointment = Appointments(patient=pat,doctor_id=doc_id,symptoms=symptoms,symptoms_date=symptoms_date,prefered_date=prefered_date)
                 appointment.save()
                 return JsonResponse({'status':'Appointment requested successfully'})
-            return JsonResponse({'status':'User is not patient'})
-        return JsonResponse({'status':'No User logged in'})
+            return JsonResponse({'status':'User is not patient'},status=405)
+        return JsonResponse({'status':'No User logged in'},status=401)
     if request.method == 'PUT': 
         if request.user.is_authenticated:
             if request.user.is_superuser:
-                data = request.POST
-                appo_id = data.get('appointment_id')
+                data = json.loads(request.body)
+                print(data)
+                appo_id = data.get('id')
                 if appo_id is None:
                     return JsonResponse({'status':'Appointment ID is required'},status=422)
                 updated_status = data.get('updated_status')
@@ -285,19 +328,63 @@ def book_appointments(request):
                 appoint = Appointments.objects.get(id=appo_id)
                 if appoint.status in ['Confirmed','Rejected']:
                     return JsonResponse({'status':"You can't update this appointment"},status=422)
-                if updated_status == 'Request Initiated':
-                    appoint.status = updated_status
+                if updated_status.title() == 'Request Initiated':
+                    appoint.status = updated_status.title()
                     appoint.btn_class = 'btn-danger'
                     appoint.admin_verf = True
                     appoint.admin_approval_datetime = datetime.now()
                     appoint.save()
+                    return JsonResponse({'status':'Status updated successfully'})
                 if updated_status == 'Rejected':
-                    pass
-                    # if appoint.transaction_id is None:
-                    #     return JsonResponse({'status':"Appointment is not paid"},status=422)
-                    # appoint.status = updated_status
-                    # appoint.btn_class = 'd-none'
-                    # appoint.admin_verf = 
+                    appoint.status = updated_status
+                    appoint.btn_class = 'd-none'
+                    appoint.admin_verf = True
+                    appoint.admin_approval_datetime = datetime.now()
+                    remark = data.get('remark')
+                    if remark is None:
+                        return JsonResponse({'status':'Remark is required for rejection'},status=422)
+                    appoint.rejection_remark = remark
+                    appoint.save()
+                    return JsonResponse({'status':'Status updated successfully'})
+                return JsonResponse({'status':'Invalid status'},status=422)
+            elif request.user.is_doctor:
+                data = json.loads(request.body)
+                appo_id = data.get('id')
+                if appo_id is None or not appo_id:
+                    return JsonResponse({'status':'Appointment ID is required'},status=422)
+                updated_status = data.get('updated_status')
+                if updated_status is None or not updated_status:
+                    return JsonResponse({'status':'Updated Status is required'},status=422)
+                appoint = Appointments.objects.get(id=appo_id)
+                if appoint.status != 'Paid':
+                    return JsonResponse({'status':"You can't update this appointment"},status=422)
+                if updated_status == 'Confirmed':
+                    appoint.status = updated_status
+                    appoint.btn_class = 'd-none'
+                    appoint.doc_verf = True
+                    appoint.doctor_approval_datetime = datetime.now()
+                    appoint.save()
+                    subject, from_email, to = "Appointment confirmation on Maxcare Health", "shantanugupta13524@gmail.com", appoint.patient.email
+                    html_content = render_to_string('html_mail.html',{'username':appoint.patient.first_name,'doctor_first_name':appoint.doctor.first_name,'doctor_last_name':appoint.doctor.last_name,'date':appoint.prefered_date,'day':appoint.prefered_date.strftime('%A')})
+                    text_content = strip_tags(html_content)
+                    msg = EmailMultiAlternatives(subject, text_content, from_email, [to])
+                    msg.attach_alternative(html_content, "text/html")
+                    msg.send()
+                    return JsonResponse({'status':'Status updated successfully'})
+                if updated_status == 'Refunded':
+                    appoint.status = updated_status
+                    appoint.btn_class = 'd-none'
+                    appoint.doc_verf = True
+                    appoint.doctor_approval_datetime = datetime.now()
+                    remark = data.get('remark')
+                    if remark is None:
+                        return JsonResponse({'status':'Remark is required for rejection'},status=422)
+                    appoint.rejection_remark = remark
+                    appoint.save()
+                    return JsonResponse({'status':'Status updated successfully'})
+                return JsonResponse({'status':'Invalid update status'},status=422)
+            return JsonResponse({'status':"You don't have access to update any thing here"},status=401)
+        return JsonResponse({'status':'Unauthorised'},status=401)
     return JsonResponse({"status":"Invalid request method"},status=400)
             
 
@@ -305,24 +392,34 @@ def test(request):
     if request.method == 'POST':
         # text = render_to_string()
 
-        subject, from_email, to = "Welcome", "shantanugupta13524@gmail.com", "shivanshugupta1109@gmail.com"
+        subject, from_email, to = "Appointment confirmation on Maxcare Health", "shantanugupta13524@gmail.com", "shantanugupta13524@gmail.com"
         text_content = "This is an important message."
         html_content = render_to_string('html_mail.html',{'username':'Shantanu'})
         msg = EmailMultiAlternatives(subject, text_content, from_email, [to])
         msg.attach_alternative(html_content, "text/html")
         msg.send()
         return JsonResponse({'status':'Mail sent successfully'})
-    if request.method == 'GET':
-        if request.user.is_authenticated:
-            if request.user.is_superuser:
-                data = Appointments.objects.all().values()
-                return JsonResponse(list(data),safe=False)
-            elif request.user.is_doctor:
-                doctor_id = request.user.id
-                data = Appointments.objects.filter(doctor_id=request.user.id).values()
-                return JsonResponse(list(data),safe=False)
-            elif request.user.is_patient:
-                data = Appointments.objects.filter(patient_id=request.user.id).values('doctor__first_name','doctor__last_name','prefered_date','status','symptoms')
-                return JsonResponse(list(data),safe=False)
-            return JsonResponse({'status':'You are no one here'},status=400)
-        return JsonResponse({'status':'Unautherised access'},status=401)
+    # if request.method == 'POST':
+    #     if request.user.is_authenticated:
+    #         if request.user.is_superuser:
+    #             data = json.loads(request.body)
+    #             query_date = data.get('date')
+    #             if query_date is None or not query_date:
+    #                 query_date = datetime.today()
+    #             else:
+    #                 query_date = query_date.split('-')
+    #                 query_date = date(int(query_date[0]),int(query_date[1]),int(query_date[2]))
+    #             date_list = [['Date','Total Requests','Accepted by Receptionist','Rejected by Receptionist','Accepted by Doctor','Refunded']]
+    #             for i in range(5):
+    #                 find_date = query_date - timedelta(days=i)
+    #                 total_queries = Appointments.objects.filter(request_date__date=find_date).count()
+    #                 accepted_by_admin = Appointments.objects.filter(Q(request_date__date=find_date) & (Q(status='Request Initiated') | Q(status='Paid'))).count()
+    #                 rejected_by_admin = Appointments.objects.filter(Q(request_date__date=find_date) & Q(status='Rejected')).count()
+    #                 accepted_by_doc = Appointments.objects.filter(Q(request_date__date=find_date) & Q(status='Confirmed')).count()
+    #                 refunded_by_doc = Appointments.objects.filter(Q(request_date__date=find_date) & Q(status='Refunded')).count()
+    #                 find_date_list = [find_date.strftime("%d-%m-%Y"),total_queries,accepted_by_admin,rejected_by_admin,accepted_by_doc,refunded_by_doc]
+    #                 date_list.append(find_date_list)
+    #             return JsonResponse(date_list,safe=False)
+    #         return JsonResponse({'status':"You don't have access to update any thing here"},status=401)
+    #     return JsonResponse({'status':'Unauthorised'},status=401)
+    return JsonResponse({"status":"Invalid request method"},status=400)

@@ -1,5 +1,5 @@
 from django.db import models
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 from datetime import datetime
@@ -33,6 +33,7 @@ class MyUser(AbstractUser):
     choices_of_marital_status = {
         "UM":"Unmarrid",
         "MA":"Married",
+        "W":"Widowed"
     }
     choices_of_gender = {
         "M":"Male",
@@ -44,7 +45,7 @@ class MyUser(AbstractUser):
     address = models.TextField(max_length=510, null=False)
     city = models.CharField(max_length=20, null=False)
     state = models.CharField(max_length=30, null=False)
-    pincode = models.IntegerField(null=False)
+    pincode = models.IntegerField(null=True)
     dob = models.DateField(null=False)
     marital_status = models.CharField(max_length=2, choices=choices_of_marital_status, default='UM')
     is_patient = models.BooleanField(default=False)
@@ -95,11 +96,11 @@ class Patient(MyUser):
     weight = models.FloatField(null=False)
     height = models.FloatField(null=False)
     daibitic = models.BooleanField(default=False,null=True)
-    blood_grp = models.CharField(max_length=3,null=False, choices=choices_of_blood)
+    blood_grp = models.CharField(max_length=3,null=True, choices=choices_of_blood)
     allergy = models.CharField(max_length=20,null=True )
     med_issue = models.CharField(max_length=225,null=True)
 
-    objects = PatientManager()
+    # objects = PatientManager()
 
     def save(self , *args , **kwargs): 
         self.type = MyUser.Types.PATIENT 
@@ -133,8 +134,8 @@ class Doctor(MyUser):
     experience = models.IntegerField(validators=[MinValueValidator(2)])
     doc_img = models.ImageField(max_length=500,upload_to='doctors')
     doc_fee = models.IntegerField(default=2000)
-
-    objects = DoctorManager()
+    is_deleted = models.BooleanField(default=0)
+    # objects = DoctorManager()
 
     def save(self , *args , **kwargs): 
         self.type = MyUser.Types.DOCTOR 
@@ -148,6 +149,7 @@ class Appointments(models.Model):
         'Request Initiated':'REQUEST INITIATED',
         'Paid':'PAID',
         'Confirmed':'CONFIRMED',
+        'Prescribed':'PRESCRIBED',
         'Rejected':'REJECTED',
         'Refunded':'REFUNDED',
     }
@@ -163,9 +165,9 @@ class Appointments(models.Model):
     doc_verf = models.BooleanField(default=0)
     admin_approval_datetime = models.DateTimeField(null=True)
     doctor_approval_datetime = models.DateTimeField(null=True)
+    prescribed_datetime = models.DateTimeField(null=True)
     btn_class = models.CharField(max_length=50,default='d-none')
     rejection_remark = models.TextField(max_length=510,null=True)
-
 
 class sidebar(models.Model):
     name = models.CharField(max_length=25)
@@ -176,3 +178,9 @@ class sidebar(models.Model):
 
     class Meta:
         unique_together = ('visibility','priority')
+
+class Precription(models.Model):
+    medicine_name = models.CharField(max_length=100)
+    valid_date = models.DateField()
+    frequency = models.IntegerField(validators=[MaxValueValidator(3)])
+    appoint = models.ForeignKey(Appointments, on_delete=models.RESTRICT)

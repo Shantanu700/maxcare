@@ -48,6 +48,19 @@
     td img{
         display: block;
     }
+    .button {
+        background-color: #e74424;
+        border: none;
+        border-radius: 10px;
+        color: white;
+        padding: 15px 32px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 16px;
+        margin: 4px 2px;
+        /* cursor: pointer; */
+    }
     
 
 </style>
@@ -84,13 +97,15 @@
 
 <!-- THREE COLUMN SECTION -->
 
-        <tr>
+        <tr >
             <td class="content" width="100%" style="padding:10px 25px;"> Hi {{ username }}, <br><br>
 
                 Thanks for getting in touch. <br><br>
                 
-                This is a confirmation email regarding your appointment at Maxcare with Dr. {{ doctor_first_name }} {{ doctor_last_name }} on {{ date }}, {{ day }}. Please be available on shceduled date. <br><br>
-                
+                This is a confirmation email regarding your appointment request at Maxcare with Dr. {{ doctor_first_name }} {{ doctor_last_name }} on {{ date }}, {{ day }}. Please note that your request has been initiated and now you need to pay the fees of the doctor. <br><br>
+                <center>
+                <a href="example.com"><button class="button">Pay Now</button></a>
+                </center>
                 Regards, <br><br>
                 
                 Max Care Pvt. Ltd. <br><br>

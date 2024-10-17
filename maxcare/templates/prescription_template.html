@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prescription</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #f2eeee;
+        }
+        img {
+            border: 0;
+            
+        }
+        .main {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #f7f1e6;
+            border-spacing: 0px;
+            font-family: sans-serif;
+            color: #e74424;
+            font-size: 35px;
+            font-weight: 100px;
+        }
+        .top-border {
+            height: 8px;
+            background-color: #e74424;
+        }
+        td img {
+            display: block;
+            margin-left: 360px;
+            width: 50px;
+        }
+        table table{
+            table-layout: fixed;
+        }
+        .main_table {
+            border: 1px solid transparent;
+            border-collapse: collapse;
+            /* table-layout: fixed; */
+            border-radius: 10px;
+            font-family: sans-serif;
+            color: #808080;
+            font-size: 15px;
+            padding: 10px;
+            width: 642px;
+        }
+        .main_heading {
+            border-bottom: 2px solid #3b3b3b;
+        }
+        .footer {
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+    <!-- <table>
+        <tr>
+            <td height="8" style="background-color: #e74424;"></td>
+        </tr>
+        <img src="https://cdn-icons-png.flaticon.com/512/119/119060.png" alt="hospital image">
+        <tr>
+          <th>Company</th>
+          <th>Contact</th>
+          <th>Country</th>
+        </tr>
+        <tr>
+          <td>Alfreds Futterkiste</td>
+          <td>Maria Anders</td>
+          <td>Germany</td>
+        </tr>
+        <tr>
+          <td>Centro comercial Moctezuma</td>
+          <td>Francisco Chang</td>
+          <td>Mexico</td>
+        </tr>
+      </table> -->
+    <table class="main" width="100%">
+    <!-- TOP BORDER -->
+        <tr>
+            <td class="top-border"></td>
+        </tr>
+
+<!-- LOGO SECTION -->
+        <tr>
+            <td>
+                <table width="100%" style="padding:10px 25px;">
+                    <tr>
+                        <td>
+                            MAXCARE
+                        </td>
+                        <td>
+                            <img src="https://cdn-icons-png.flaticon.com/512/119/119060.png" alt="hospital image">
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+        <tr>
+        <table class="main_table">
+            <tr class="main_heading">
+              <th class="main_table">Medicine</th>
+              <th class="main_table">Prescribed till date</th>
+              <th class="main_table">Frequency</th>
+            </tr>
+            {% for r in result %}
+            <tr>
+              <td class="main_table">{{ r.medicine_name }}</td>
+              <td class="main_table">{{ r.valid_date }}</td>
+              <td class="main_table">{{ r.frequency }}</td>
+            </tr>
+            {% endfor %}
+          </table>
+        </tr>
+        <hr>
+        <tr>
+            <table class="main_table">
+                <tr>
+                    <td class="main_table">Appointment ID: {{ appointment_id }}</td>
+                </tr>
+                <tr>
+                    <td class="main_table">Patient Name: {{ pt.patient__first_name }} {{ pt.patient__last_name }}</td>
+                </tr>
+                <tr>
+                    <td class="main_table">Under care of: Dr. {{ dr.doctor__first_name }} {{ dr.doctor__last_name }}</td>
+                </tr>                
+            </table>
+        </tr>
+    </table>
+</body>
+</html>

@@ -84,12 +84,14 @@
 
 <!-- THREE COLUMN SECTION -->
 
-        <tr>
+        <tr >
             <td class="content" width="100%" style="padding:10px 25px;"> Hi {{ username }}, <br><br>
 
                 Thanks for getting in touch. <br><br>
                 
-                This is a confirmation email regarding your appointment at Maxcare with Dr. {{ doctor_first_name }} {{ doctor_last_name }} on {{ date }}, {{ day }}. Please be available on shceduled date. <br><br>
+                This is a email to inform you regarding your appointment at Maxcare with Dr. {{ doctor_first_name }} {{ doctor_last_name }} on {{ date }}, {{ day }} has been {{ status }} by the {{ person }} due to the reason stated below. <br><br>
+                
+                Reason : {{ reason }} <br><br>
                 
                 Regards, <br><br>
                 

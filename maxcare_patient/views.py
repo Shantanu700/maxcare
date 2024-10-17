@@ -1,8 +1,9 @@
 from django.db.models import F,Q
-from django.http import JsonResponse
+from django.core.files import File
+from django.http import JsonResponse,HttpResponse
 import json
 from django.core.mail import EmailMultiAlternatives
-from django.template.loader import render_to_string
+from django.template.loader import render_to_string,get_template,select_template
 import re
 from django.utils.html import strip_tags
 import magic
@@ -11,11 +12,16 @@ from django.shortcuts import get_object_or_404
 from maxcare_patient.models import *
 from django.contrib.auth import authenticate, login, logout
 import os
-from django.shortcuts import redirect
+from django.shortcuts import redirect,render
 from datetime import date,datetime,timedelta
-
+from django_renderpdf.helpers import render_pdf 
 
 def patient_registration(request):
+    if request.method == 'GET':
+        data_choices_of_marital_status = list(MyUser.choices_of_marital_status.values())
+        data_choices_of_gender = list(MyUser.choices_of_gender.values())
+        data_choices_of_blood = list(Patient.choices_of_blood.values())
+        return JsonResponse({'marital_status':data_choices_of_marital_status,'gender':data_choices_of_gender,'blood':data_choices_of_blood})
     if request.method == 'POST':
         data = request.POST
         print(data)
@@ -32,9 +38,7 @@ def patient_registration(request):
             print('err in email format')
             return JsonResponse({"status":"Invalid Email, should in the form abc@xyz.com"},status=422)
         mobile = data.get('mobile')
-        if not (mobile.isnumeric() and len(mobile) == 10):
-            print(mobile)
-            print('err in mobile')
+        if not mobile or not (mobile.isnumeric() and len(mobile) == 10):
             return JsonResponse({"status":"Invalid Phone, shoud be of 10 digits and numeric"},status=422)
         passwd_1 = data.get('passwd1')
         passwd_2 = data.get('passwd2')
@@ -48,44 +52,47 @@ def patient_registration(request):
             print('err in Password')
             return JsonResponse({"status":"Weak Password, should include an upper case, a number, an special Symbol and should be of length between 8 to 16"},status=400)
         gender = data.get('gender')
-        if not gender:
-            print('err in Gender')
-            return JsonResponse({'status':'GENDER is required'},status=422)
+        if not gender or not (gender == 'M' or gender == 'F'):
+            return JsonResponse({'status':'GENDER is invalid'},status=422)
         address = data.get('address')
         if not address:
-            print('err in address')
             return JsonResponse({'status':'ADDRESS is required'},status=422)
         city = data.get('city')
-        if not city:
+        if not city or (len(city) > 20) :
             print('err in City')
-            return JsonResponse({'status':'CITY is required'},status=422)
+            return JsonResponse({'status':'CITY is invalid'},status=422)
         state = data.get('state')
-        if not state:
+        if not state or len(state) > 30:
             print('err in state')
             return JsonResponse({'status':'STATE is required'},status=422)
         pincode = data.get('pincode')
-        if not pincode:
-            print('err in pincode')
-            return JsonResponse({'status':'PINCODE is required'},status=422)
+        if pincode:
+            if len(pincode) != 6:
+                print('err in pincode')
+                return JsonResponse({'status':'PINCODE is required'},status=422)
         dob = data.get('dob')
         if not dob:
             print('err in dob')
             return JsonResponse({'status':'DOB is required'},status=422)
+        if not bool(re.match(r'^([20]{2}|[19]{2})?[0-9]{2}(-)(1[0-2]|0?[1-9])\2(3[01]|[12][0-9]|0?[1-9])$/gm',dob)):
+            return JsonResponse({'status':'Date of birth is invalid'},status=422)
         dob = dob.split('-')
         dob = date(int(dob[0]),int(dob[1]),int(dob[2]))
         marital_status = data.get('maritalStatus')
+        if marital_status not in MyUser.choices_of_marital_status.values():
+            return JsonResponse({'status':'Invalid marital status'},status=422)
         emergency_contact = data.get('emergency_contact')
-        if not emergency_contact:
-            print('err in emergency')
-            return JsonResponse({'status':'EMERGENCY CONTACT is required'},status=422)
+        if not emergency_contact or not (emergency_contact.isnumeric() and len(emergency_contact) == 10):
+            return JsonResponse({'status':'EMERGENCY CONTACT is invalid'},status=422)
         weight = data.get('Weight')
-        if not weight:
+        if not weight or not bool(re.match(r'^(\d{1,3})(()|(\.(\d{1,2})))$')):
             print('err in wgt')
-            return JsonResponse({'status':'WEIGHT is required'},status=422)
+            return JsonResponse({'status':'Weight is invalid'},status=422)
+        
         height = data.get('height')
-        if not height:
+        if not height or not bool(re.match(r'^(\d{2,3})(()|(\.(\d{1})))$')):
             print('err in hgt')
-            return JsonResponse({'status':'HEIGHT is required'},status=422)
+            return JsonResponse({'status':'Height is invalid'},status=422)
         daibitic = data.get('diabitic')
         blood_grp = data.get('blood_Group')
         if not blood_grp:
@@ -174,7 +181,7 @@ def doctor_registration(request):
             return JsonResponse({"status":"User already exists with this email"},status=409)
         doc = Doctor(first_name=first_name,last_name=last_name,email=e_mail,password=passwd_1,phone_number=mobile,gender=gender,address=address,dob=dob,marital_status=marital_status,pincode=pincode,degree=degree,specialization=specialization,experience=experience,doc_img=doc_img,city=city,state=state)
         doc.save()
-        return JsonResponse({'status':'Doctor registered Succesfully','route':'/doctor/drpendingappointments'})
+        return JsonResponse({'status':'Doctor registered Succesfully','route':'/doctor/drpendingAppointments'})
     return JsonResponse({"status":"Invalid request method"},status=405)
 
 def signin(request):
@@ -261,29 +268,33 @@ def get_data(request):
         return JsonResponse({'status':'Unauthorised'},status=401)
     return JsonResponse({"status":"Invalid request method"},status=400)
 
-
-                 
-
-
 def manage_appointments(request):
     if request.method == 'GET':
         if request.user.is_authenticated:
             if request.user.is_patient:
-                data = Appointments.objects.filter(patient_id=request.user.id).order_by('-request_date').values('doctor__first_name','doctor__last_name','prefered_date','status','symptoms','btn_class')
+                requested_status = request.GET.get('status')
+                if requested_status:
+                    data = Appointments.objects.filter(patient_id=request.user.id,status=requested_status).order_by('-request_date').values('doctor__first_name','doctor__last_name','doctor__doc_fee','prefered_date','status','symptoms','btn_class','id')
+                else:
+                    data = Appointments.objects.filter(patient_id=request.user.id).order_by('-request_date').values('doctor__first_name','doctor__last_name','doctor__doc_fee','prefered_date','status','symptoms','btn_class','id')
                 return JsonResponse(list(data),safe=False)
             elif request.user.is_superuser:
                 requested_status = request.GET.get('status')
-                if requested_status.title() == 'Request Initiated':
-                    data = Appointments.objects.filter(Q(status=requested_status) | Q(status='Paid')).values('id','patient__first_name','patient__last_name','doctor__first_name','doctor__last_name','prefered_date','status','symptoms','request_date').order_by('-request_date')
+                if requested_status is not None:
+                    if requested_status.title() == 'Request Initiated':
+                        data = Appointments.objects.filter(Q(status=requested_status) | Q(status='Paid')).values('id','patient__first_name','patient__last_name','doctor__first_name','doctor__last_name','prefered_date','status','symptoms','request_date').order_by('-request_date')
+                        return JsonResponse(list(data),safe=False)
+                    data = Appointments.objects.filter(status=requested_status).values('id','patient__first_name','patient__last_name','doctor__first_name','doctor__last_name','prefered_date','status','symptoms','request_date').order_by('-request_date')
                     return JsonResponse(list(data),safe=False)
-                data = Appointments.objects.filter(status=requested_status).values('id','patient__first_name','patient__last_name','doctor__first_name','doctor__last_name','prefered_date','status','symptoms','request_date').order_by('-request_date')
-                return JsonResponse(list(data),safe=False)
+                return JsonResponse({'status':'Requested status is required'},status=422)
             elif request.user.is_doctor:
                 requested_status = request.GET.get('status')
-                if requested_status.title() not in ['Paid','Confirmed']:
-                    return JsonResponse({'status':'Invalid Status'},status=422)    
-                data = Appointments.objects.filter(status=requested_status, doctor_id=request.user.id).values('id','patient__first_name','patient__last_name','doctor__first_name','doctor__last_name','prefered_date','status','symptoms','request_date').order_by('-request_date')
-                return JsonResponse(list(data),safe=False)
+                if requested_status is not None:
+                    if requested_status.title() not in ['Paid','Confirmed','Prescribed']:
+                        return JsonResponse({'status':'Invalid Status'},status=422)    
+                    data = Appointments.objects.filter(status=requested_status, doctor_id=request.user.id).values('id','patient__first_name','patient__last_name','doctor__first_name','doctor__last_name','prefered_date','status','symptoms','request_date').order_by('-request_date')
+                    return JsonResponse(list(data),safe=False)
+                return JsonResponse({'status':'Requested status is required'},status=422)
             return JsonResponse({'status':'You are no one here'},status=400)
         return JsonResponse({'status':'Unautherised access'},status=401)
 
@@ -325,8 +336,10 @@ def manage_appointments(request):
                 updated_status = data.get('updated_status')
                 if updated_status is None or not updated_status:
                     return JsonResponse({'status':'Updated Status is required'},status=422)
+                if not Appointments.objects.filter(id=appo_id).exists():
+                    return JsonResponse({'status':'Appointment for requested id not found'},status=404)
                 appoint = Appointments.objects.get(id=appo_id)
-                if appoint.status in ['Confirmed','Rejected']:
+                if appoint.status in ['Confirmed','Rejected','Refunded','Prescribed']:
                     return JsonResponse({'status':"You can't update this appointment"},status=422)
                 if updated_status.title() == 'Request Initiated':
                     appoint.status = updated_status.title()
@@ -334,6 +347,12 @@ def manage_appointments(request):
                     appoint.admin_verf = True
                     appoint.admin_approval_datetime = datetime.now()
                     appoint.save()
+                    subject, from_email, to = "Request initiated for appointment on Maxcare Health", "shantanugupta13524@gmail.com", appoint.patient.email
+                    html_content = render_to_string('RI_template.html',{'username':appoint.patient.first_name,'doctor_first_name':appoint.doctor.first_name,'doctor_last_name':appoint.doctor.last_name,'date':appoint.prefered_date,'day':appoint.prefered_date.strftime('%A')})
+                    text_content = strip_tags(html_content)
+                    msg = EmailMultiAlternatives(subject, text_content, from_email, [to])
+                    msg.attach_alternative(html_content, "text/html")
+                    msg.send()
                     return JsonResponse({'status':'Status updated successfully'})
                 if updated_status == 'Rejected':
                     appoint.status = updated_status
@@ -341,10 +360,17 @@ def manage_appointments(request):
                     appoint.admin_verf = True
                     appoint.admin_approval_datetime = datetime.now()
                     remark = data.get('remark')
-                    if remark is None:
+                    if remark is None or not remark:
                         return JsonResponse({'status':'Remark is required for rejection'},status=422)
                     appoint.rejection_remark = remark
                     appoint.save()
+                    subject, from_email, to = "Request canceled for appointment on Maxcare Health", "shantanugupta13524@gmail.com", appoint.patient.email
+                    print(remark)
+                    html_content = render_to_string('Rejected_template.html',{'username':appoint.patient.first_name,'doctor_first_name':appoint.doctor.first_name,'doctor_last_name':appoint.doctor.last_name,'date':appoint.prefered_date,'day':appoint.prefered_date.strftime('%A'),'status':updated_status,'person':'Receptionist','reason':remark})
+                    text_content = strip_tags(html_content)
+                    msg = EmailMultiAlternatives(subject, text_content, from_email, [to])
+                    msg.attach_alternative(html_content, "text/html")
+                    msg.send()
                     return JsonResponse({'status':'Status updated successfully'})
                 return JsonResponse({'status':'Invalid status'},status=422)
             elif request.user.is_doctor:
@@ -355,6 +381,8 @@ def manage_appointments(request):
                 updated_status = data.get('updated_status')
                 if updated_status is None or not updated_status:
                     return JsonResponse({'status':'Updated Status is required'},status=422)
+                if not Appointments.objects.filter(id=appo_id).exists():
+                    return JsonResponse({'status':'Appointment for requested id not found'},status=404)
                 appoint = Appointments.objects.get(id=appo_id)
                 if appoint.status != 'Paid':
                     return JsonResponse({'status':"You can't update this appointment"},status=422)
@@ -371,6 +399,38 @@ def manage_appointments(request):
                     msg.attach_alternative(html_content, "text/html")
                     msg.send()
                     return JsonResponse({'status':'Status updated successfully'})
+                if updated_status == 'Prescribed':
+                    appoint.status = updated_status
+                    appoint.btn_class = 'd-none'
+                    appoint.doc_verf = True
+                    appoint.prescribed_datetime = datetime.now()
+                    appoint.save()
+                    #create pdf
+                    data = Precription.objects.filter(appoint_id=appo_id).values('medicine_name', 'valid_date', 'frequency')
+                    doc_info = Appointments.objects.filter(id=appo_id).values('doctor__first_name','doctor__last_name')
+                    pat_info = Appointments.objects.filter(id=appo_id).values('patient__first_name','patient__last_name')
+                    print(doc_info[0])
+                    print(pat_info[0])
+                    f = open('Media/doctors/prescription.pdf','wb+')
+                    myfile = File(f) 
+                    render_pdf(
+                            template='prescription_template.html',
+                            file_=myfile,
+                            context={'result':list(data),
+                                    'appointment_id':appo_id,
+                                    'dr':doc_info[0],
+                                    'pt':pat_info[0]
+                                    },
+                        )
+                    f.close()
+                    #send mail with attachment
+                    subject, from_email, to = "Prescription of appointment on Maxcare Health", "shantanugupta13524@gmail.com", appoint.patient.email
+                    html_content = render_to_string('prescription_mail.html',{'username':appoint.patient.first_name,'doctor_first_name':appoint.doctor.first_name,'doctor_last_name':appoint.doctor.last_name,'date':appoint.prefered_date,'day':appoint.prefered_date.strftime('%A')})
+                    text_content = strip_tags(html_content)
+                    msg = EmailMultiAlternatives(subject, text_content, from_email, [to])
+                    msg.attach_alternative(html_content, "text/html")
+                    msg.attach_file('Media/doctors/prescription.pdf')
+                    msg.send()
                 if updated_status == 'Refunded':
                     appoint.status = updated_status
                     appoint.btn_class = 'd-none'
@@ -381,24 +441,110 @@ def manage_appointments(request):
                         return JsonResponse({'status':'Remark is required for rejection'},status=422)
                     appoint.rejection_remark = remark
                     appoint.save()
+                    subject, from_email, to = "Request canceled for appointment on Maxcare Health", "shantanugupta13524@gmail.com", appoint.patient.email
+                    print(remark)
+                    html_content = render_to_string('Rejected_template.html',{'username':appoint.patient.first_name,'doctor_first_name':appoint.doctor.first_name,'doctor_last_name':appoint.doctor.last_name,'date':appoint.prefered_date,'day':appoint.prefered_date.strftime('%A'),'status':updated_status,'person':'Doctor','reason':remark})
+                    text_content = strip_tags(html_content)
+                    msg = EmailMultiAlternatives(subject, text_content, from_email, [to])
+                    msg.attach_alternative(html_content, "text/html")
+                    msg.send()
                     return JsonResponse({'status':'Status updated successfully'})
                 return JsonResponse({'status':'Invalid update status'},status=422)
             return JsonResponse({'status':"You don't have access to update any thing here"},status=401)
         return JsonResponse({'status':'Unauthorised'},status=401)
     return JsonResponse({"status":"Invalid request method"},status=400)
             
+def manage_prescription(request):
+    if request.method == 'POST':
+        if request.user.is_authenticated:
+            if request.user.is_doctor:
+                if request.body:
+                    data = json.loads(request.body)
+                    appo_id = data.get('id')
+                    if not appo_id:
+                        return JsonResponse({'status':'Appointment ID is required'},status=422)
+                    med_name = data.get('medicineName')
+                    if not med_name:
+                        return JsonResponse({'status':'Appointment ID is required'},status=422)
+                    valid_date = data.get('prescribeDate')
+                    if not valid_date:
+                        return JsonResponse({'status':'Prescribed date is required'},status=422)
+                    frequency = data.get('frequency')
+                    if not frequency:
+                        return JsonResponse({'status':'Frequency is required'},status=422)
+                    prescription = Precription(medicine_name=med_name, valid_date=valid_date, frequency=frequency, appoint_id=appo_id)
+                    Appointments.objects.filter(id=appo_id).update(status='Prescribed')
+                    prescription.save()
+                    return JsonResponse({'status':'Prescription created successfully'})
+                return JsonResponse({'status':'Nothing is found in body'},status=401)
+            return JsonResponse({'status':'You are not a doctor'}, status=401)
+        return JsonResponse({'status':'Unauthorised'}, status=401)
+    elif request.method == 'GET':
+        if request.user.is_authenticated:
+            if request.user.is_doctor:
+                appo_id = request.GET.get('id')
+                if not appo_id:
+                    return JsonResponse({'status':'Appointment ID is required'},status=400)
+                prescription = Precription.objects.filter(appoint__doctor_id=request.user.id,appoint_id=appo_id).values('medicine_name','valid_date','frequency')
+                return JsonResponse(list(prescription),safe=False)
+            elif request.user.is_patient:
+                appo_id = request.GET.get('id')
+                if not appo_id:
+                    return JsonResponse({'status':'Appointment ID is required'},status=400)
+                prescription = Precription.objects.filter(appoint__patient_id=request.user.id,appoint_id=appo_id).values('medicine_name','valid_date','frequency')
+                data = Appointments.objects.get(id=appo_id)
+                return JsonResponse(list(prescription),safe=False)
+            return JsonResponse({'status':'You are not a doctor'}, status=401)
+        return JsonResponse({'status':'Unauthorised'}, status=401)
+
+    return JsonResponse({"status":"Invalid request method"},status=400)
+
 
 def test(request):
-    if request.method == 'POST':
+    if request.method == 'GET':
+        appoint_id = request.GET.get('id')
+        data = Precription.objects.filter(appoint_id=appoint_id).values('medicine_name', 'valid_date', 'frequency')
+        doc_info = Appointments.objects.filter(id=appoint_id).values('doctor__first_name','doctor__last_name')
         # text = render_to_string()
+        print(doc_info[0])
+        f = open('Media/doctors/prescription.pdf','wb+')
+        myfile = File(f) 
+        response = HttpResponse(content_type="application/pdf")
+        pdf = render_pdf(
+                template='prescription_template.html',
+                file_=myfile,
+                # url_fetcher=self.url_fetcher,
+                context={'result':list(data),
+                        'appointment_id':appoint_id,
+                        'dr':doc_info[0]
+                        },
+            )
+        f.close()
+        # pdf = open('Media/doctors/hello.pdf','rb+')
 
+        
         subject, from_email, to = "Appointment confirmation on Maxcare Health", "shantanugupta13524@gmail.com", "shantanugupta13524@gmail.com"
         text_content = "This is an important message."
-        html_content = render_to_string('html_mail.html',{'username':'Shantanu'})
+        html_content = render_to_string('RI_template.html',{'username':'Shantanu'})
         msg = EmailMultiAlternatives(subject, text_content, from_email, [to])
         msg.attach_alternative(html_content, "text/html")
+        msg.attach_file('Media/doctors/prescription.pdf')
         msg.send()
-        return JsonResponse({'status':'Mail sent successfully'})
+
+
+
+        return render(
+        request,
+        "html_mail.html",
+        {
+            "foo": "bar",
+        },
+        content_type="application/xhtml+xml",
+    )
+
+
+
+        # return JsonResponse({'status':'Mail sent successfully'})
     # if request.method == 'POST':
     #     if request.user.is_authenticated:
     #         if request.user.is_superuser:

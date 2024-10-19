@@ -33,6 +33,7 @@ class MyUser(AbstractUser):
     choices_of_marital_status = {
         "UM":"Unmarrid",
         "MA":"Married",
+        "DI":"Divorced",
         "W":"Widowed"
     }
     choices_of_gender = {
@@ -95,10 +96,10 @@ class Patient(MyUser):
     emergency_contact = models.CharField(max_length=10,null=False)
     weight = models.FloatField(null=False)
     height = models.FloatField(null=False)
-    daibitic = models.BooleanField(default=False,null=True)
-    blood_grp = models.CharField(max_length=3,null=True, choices=choices_of_blood)
-    allergy = models.CharField(max_length=20,null=True )
-    med_issue = models.CharField(max_length=225,null=True)
+    is_daibitic = models.BooleanField(default=False,null=True)
+    blood_grp = models.CharField(max_length=3, null=True, choices=choices_of_blood)
+    allergy = models.CharField(max_length=255, null=True)
+    med_issue = models.CharField(max_length=225, null=True)
 
     # objects = PatientManager()
 

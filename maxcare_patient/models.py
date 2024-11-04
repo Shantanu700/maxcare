@@ -100,6 +100,7 @@ class Patient(MyUser):
     blood_grp = models.CharField(max_length=3, null=True, choices=choices_of_blood)
     allergy = models.CharField(max_length=255, null=True)
     med_issue = models.CharField(max_length=225, null=True)
+    is_deleted = models.BooleanField(default=0)
 
     # objects = PatientManager()
 

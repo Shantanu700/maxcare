@@ -1,4 +1,5 @@
 from django.db.models import F,Q
+from django.core.paginator import Paginator
 from django.core.files import File
 from django.http import JsonResponse,HttpResponse
 import json
@@ -29,10 +30,12 @@ def patient_registration(request):
         if first_name is None or not first_name.isalpha():
             print(first_name)
             return JsonResponse({"status":"Invalid First name, should be in alphabets"}, status=422)
+        first_name = first_name.strip()
         last_name = data.get('last_name')
         if last_name is not None:
             if not last_name.isalpha():
                 return JsonResponse({"status":"Invalid last name, should be in alphabets"}, status=422)
+            last_name = last_name.strip()
         else:
             last_name = ''
         e_mail = data.get('email')
@@ -234,9 +237,15 @@ def info(request):
     if request.method == 'GET':
         if request.user.is_authenticated:
             if request.user.is_superuser:
-                pat_lsit = Patient.objects.filter
-        
-        docs = Doctor.objects.all().values('first_name','last_name','doc_img','degree','specialization','experience','doc_fee','id')
+                pat_id = request.GET.get('id')
+                if pat_id is None or not pat_id:
+                    pat_lsit = Patient.objects.filter(is_deleted=0).values('first_name','last_name','id','email','gender')
+                    doc_list = Doctor.objects.filter(is_deleted=0).values()
+                    return JsonResponse({'doctors':list(doc_list),'patatients':list(pat_lsit)})
+                else:
+                    pat_lsit = Patient.objects.filter(id=pat_id).values('id','first_name','last_name','email','phone_number','gender','address','city','state','pincode','dob','marital_status','emergency_contact','weight','height','is_daibitic','blood_grp','allergy','med_issue')
+                    return JsonResponse(list(pat_lsit),safe=False)
+        docs = Doctor.objects.filter(is_deleted=0).values('first_name','last_name','doc_img','degree','specialization','experience','doc_fee','id')
         return JsonResponse(list(docs),safe=False)
 
 def side_panel(request):
@@ -294,12 +303,21 @@ def manage_appointments(request):
                 return JsonResponse(list(data),safe=False)
             elif request.user.is_superuser:
                 requested_status = request.GET.get('status')
+                request_page = request.GET.get('page_number')
+                if request_page is None or not request_page:
+                    request_page = 1
                 if requested_status is not None:
                     if requested_status.title() == 'Request Initiated':
                         data = Appointments.objects.filter(Q(status=requested_status) | Q(status='Paid')).values('id','patient__first_name','patient__last_name','doctor__first_name','doctor__last_name','prefered_date','status','symptoms','request_date').order_by('-request_date')
                         return JsonResponse(list(data),safe=False)
-                    data = Appointments.objects.filter(status=requested_status).values('id','patient__first_name','patient__last_name','doctor__first_name','doctor__last_name','prefered_date','status','symptoms','request_date').order_by('-request_date')
-                    return JsonResponse(list(data),safe=False)
+                    data = Appointments.objects.filter(status=requested_status).values('id','patient__first_name','patient__last_name','doctor__first_name','doctor__last_name','prefered_date','status','symptoms','request_date').order_by('-request_date')                    
+                    paginator = Paginator(data, 25)
+                    page_obj = paginator.get_page(request_page)
+                    print(page_obj.object_list, paginator.num_pages)
+                    next_page = page_obj.next_page_number() if page_obj.has_next() else None
+                    prev_page = page_obj.previous_page_number() if page_obj.has_previous() else None
+                    print(prev_page, next_page)
+                    return JsonResponse({'previous page':prev_page,'next page':next_page,'total_no_of_pages':paginator.num_pages,'data':list(page_obj.object_list),'no_of_records':len(list(page_obj.object_list))})
                 return JsonResponse({'status':'Requested status is required'},status=422)
             elif request.user.is_doctor:
                 requested_status = request.GET.get('status')
@@ -361,7 +379,7 @@ def manage_appointments(request):
                     appoint.admin_verf = True
                     appoint.admin_approval_datetime = datetime.now()
                     appoint.save()
-                    subject, from_email, to = "Request initiated for appointment on Maxcare Health", "shantanugupta13524@gmail.com", appoint.patient.email
+                    subject, from_email, to = "Request initiated for appointment on Maxcare Health", "max.care13524@gmail.com", appoint.patient.email
                     html_content = render_to_string('RI_template.html',{'username':appoint.patient.first_name,'doctor_first_name':appoint.doctor.first_name,'doctor_last_name':appoint.doctor.last_name,'date':appoint.prefered_date,'day':appoint.prefered_date.strftime('%A')})
                     text_content = strip_tags(html_content)
                     msg = EmailMultiAlternatives(subject, text_content, from_email, [to])
@@ -378,7 +396,7 @@ def manage_appointments(request):
                         return JsonResponse({'status':'Remark is required for rejection'},status=422)
                     appoint.rejection_remark = remark
                     appoint.save()
-                    subject, from_email, to = "Request canceled for appointment on Maxcare Health", "shantanugupta13524@gmail.com", appoint.patient.email
+                    subject, from_email, to = "Request canceled for appointment on Maxcare Health", "max.care13524@gmail.com", appoint.patient.email
                     print(remark)
                     html_content = render_to_string('Rejected_template.html',{'username':appoint.patient.first_name,'doctor_first_name':appoint.doctor.first_name,'doctor_last_name':appoint.doctor.last_name,'date':appoint.prefered_date,'day':appoint.prefered_date.strftime('%A'),'status':updated_status,'person':'Receptionist','reason':remark})
                     text_content = strip_tags(html_content)
@@ -406,7 +424,7 @@ def manage_appointments(request):
                     appoint.doc_verf = True
                     appoint.doctor_approval_datetime = datetime.now()
                     appoint.save()
-                    subject, from_email, to = "Appointment confirmation on Maxcare Health", "shantanugupta13524@gmail.com", appoint.patient.email
+                    subject, from_email, to = "Appointment confirmation on Maxcare Health", "max.care13524@gmail.com", appoint.patient.email
                     html_content = render_to_string('html_mail.html',{'username':appoint.patient.first_name,'doctor_first_name':appoint.doctor.first_name,'doctor_last_name':appoint.doctor.last_name,'date':appoint.prefered_date,'day':appoint.prefered_date.strftime('%A')})
                     text_content = strip_tags(html_content)
                     msg = EmailMultiAlternatives(subject, text_content, from_email, [to])
@@ -438,7 +456,7 @@ def manage_appointments(request):
                         )
                     f.close()
                     #send mail with attachment
-                    subject, from_email, to = "Prescription of appointment on Maxcare Health", "shantanugupta13524@gmail.com", appoint.patient.email
+                    subject, from_email, to = "Prescription of appointment on Maxcare Health", "max.care13524@gmail.com", appoint.patient.email
                     html_content = render_to_string('prescription_mail.html',{'username':appoint.patient.first_name,'doctor_first_name':appoint.doctor.first_name,'doctor_last_name':appoint.doctor.last_name,'date':appoint.prefered_date,'day':appoint.prefered_date.strftime('%A')})
                     text_content = strip_tags(html_content)
                     msg = EmailMultiAlternatives(subject, text_content, from_email, [to])
@@ -456,7 +474,7 @@ def manage_appointments(request):
                         return JsonResponse({'status':'Remark is required for rejection'},status=422)
                     appoint.rejection_remark = remark
                     appoint.save()
-                    subject, from_email, to = "Request canceled for appointment on Maxcare Health", "shantanugupta13524@gmail.com", appoint.patient.email
+                    subject, from_email, to = "Request canceled for appointment on Maxcare Health", "max.care13524@gmail.com", appoint.patient.email
                     print(remark)
                     html_content = render_to_string('Rejected_template.html',{'username':appoint.patient.first_name,'doctor_first_name':appoint.doctor.first_name,'doctor_last_name':appoint.doctor.last_name,'date':appoint.prefered_date,'day':appoint.prefered_date.strftime('%A'),'status':updated_status,'person':'Doctor','reason':remark})
                     text_content = strip_tags(html_content)
@@ -517,70 +535,21 @@ def manage_prescription(request):
 
 def test(request):
     if request.method == 'GET':
-        appoint_id = request.GET.get('id')
-        data = Precription.objects.filter(appoint_id=appoint_id).values('medicine_name', 'valid_date', 'frequency')
-        doc_info = Appointments.objects.filter(id=appoint_id).values('doctor__first_name','doctor__last_name')
-        # text = render_to_string()
-        print(doc_info[0])
-        f = open('Media/doctors/prescription.pdf','wb+')
-        myfile = File(f) 
-        response = HttpResponse(content_type="application/pdf")
-        pdf = render_pdf(
-                template='prescription_template.html',
-                file_=myfile,
-                # url_fetcher=self.url_fetcher,
-                context={'result':list(data),
-                        'appointment_id':appoint_id,
-                        'dr':doc_info[0]
-                        },
-            )
-        f.close()
-        # pdf = open('Media/doctors/hello.pdf','rb+')
-
-        
-        subject, from_email, to = "Appointment confirmation on Maxcare Health", "shantanugupta13524@gmail.com", "shantanugupta13524@gmail.com"
+        # page_no = request.GET.get('page_number')
+        # data = Appointments.objects.filter(status='Pending').values('id','patient__first_name','patient__last_name','doctor__first_name','doctor__last_name','prefered_date','status','symptoms','request_date').order_by('-request_date')
+        # paginator = Paginator(data, 25)
+        # page_obj = paginator.page(page_no)
+        # print(page_obj.object_list, paginator.num_pages)
+        # next_page = page_obj.next_page_number() if page_obj.has_next() else None
+        # prev_page = page_obj.previous_page_number() if page_obj.has_previous() else None
+        # print(prev_page, next_page)
+        # return JsonResponse({'previous page':prev_page,'next page':next_page,'total_no_of_pages':paginator.num_pages,'data':list(page_obj.object_list),'no_of_records':len(list(page_obj.object_list))})
+        subject = "hello"
+        from_email = "max.care13524@gmail.com"
+        to = "max.care13524@gmail.com"
         text_content = "This is an important message."
-        html_content = render_to_string('RI_template.html',{'username':'Shantanu'})
+        html_content = "<p>This is an <strong>important</strong> message.</p>"
         msg = EmailMultiAlternatives(subject, text_content, from_email, [to])
         msg.attach_alternative(html_content, "text/html")
-        msg.attach_file('Media/doctors/prescription.pdf')
         msg.send()
-
-
-
-        return render(
-        request,
-        "html_mail.html",
-        {
-            "foo": "bar",
-        },
-        content_type="application/xhtml+xml",
-    )
-
-
-
-        # return JsonResponse({'status':'Mail sent successfully'})
-    # if request.method == 'POST':
-    #     if request.user.is_authenticated:
-    #         if request.user.is_superuser:
-    #             data = json.loads(request.body)
-    #             query_date = data.get('date')
-    #             if query_date is None or not query_date:
-    #                 query_date = datetime.today()
-    #             else:
-    #                 query_date = query_date.split('-')
-    #                 query_date = date(int(query_date[0]),int(query_date[1]),int(query_date[2]))
-    #             date_list = [['Date','Total Requests','Accepted by Receptionist','Rejected by Receptionist','Accepted by Doctor','Refunded']]
-    #             for i in range(5):
-    #                 find_date = query_date - timedelta(days=i)
-    #                 total_queries = Appointments.objects.filter(request_date__date=find_date).count()
-    #                 accepted_by_admin = Appointments.objects.filter(Q(request_date__date=find_date) & (Q(status='Request Initiated') | Q(status='Paid'))).count()
-    #                 rejected_by_admin = Appointments.objects.filter(Q(request_date__date=find_date) & Q(status='Rejected')).count()
-    #                 accepted_by_doc = Appointments.objects.filter(Q(request_date__date=find_date) & Q(status='Confirmed')).count()
-    #                 refunded_by_doc = Appointments.objects.filter(Q(request_date__date=find_date) & Q(status='Refunded')).count()
-    #                 find_date_list = [find_date.strftime("%d-%m-%Y"),total_queries,accepted_by_admin,rejected_by_admin,accepted_by_doc,refunded_by_doc]
-    #                 date_list.append(find_date_list)
-    #             return JsonResponse(date_list,safe=False)
-    #         return JsonResponse({'status':"You don't have access to update any thing here"},status=401)
-    #     return JsonResponse({'status':'Unauthorised'},status=401)
-    return JsonResponse({"status":"Invalid request method"},status=400)
+        return JsonResponse({"status":"mail sent"},status=400)

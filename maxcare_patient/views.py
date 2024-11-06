@@ -25,10 +25,8 @@ def patient_registration(request):
         return JsonResponse({'marital_status':data_choices_of_marital_status,'gender':data_choices_of_gender,'blood':data_choices_of_blood})
     if request.method == 'POST':
         data = request.POST
-        print(data)
         first_name = data.get('first_name')
         if first_name is None or not first_name.isalpha():
-            print(first_name)
             return JsonResponse({"status":"Invalid First name, should be in alphabets"}, status=422)
         first_name = first_name.strip()
         last_name = data.get('last_name')
@@ -121,62 +119,89 @@ def patient_registration(request):
     return JsonResponse({"status":"Invalid request method"},status=405)
 
 def doctor_registration(request):
+    if request.method == 'GET':
+        degree = request.GET.get('degree')
+        data_choices_of_degree = list(Doctor.choices_of_degree.keys())
+        if degree is None:
+            return JsonResponse({'degree':data_choices_of_degree})
+        data_choices_of_specialization = list(Specialization.objects.filter(degree=degree).values('id','speciality'))
+        return JsonResponse({'degree':data_choices_of_degree,'specialization':data_choices_of_specialization})
     if request.method == 'POST':
         data = request.POST
-        print(data)
         first_name = data.get('first_name')
-        if not first_name.isalpha():
+        if first_name is None or not first_name.isalpha():
             return JsonResponse({"status":"Invalid First name, should be in alphabets"}, status=422)
+        first_name = first_name.strip()
         last_name = data.get('last_name')
+        if last_name is not None:
+            if not last_name.isalpha():
+                return JsonResponse({"status":"Invalid last name, should be in alphabets"}, status=422)
+            last_name = last_name.strip()
+        else:
+            last_name = ''
         e_mail = data.get('email')
         if not e_mail:
             return JsonResponse({"status":"Email is required"},status=422)
         if not bool(re.match(r"[a-zA-Z0-9_\-\.]+[@][a-z]+[\.][a-z]{2,3}",e_mail)):
             return JsonResponse({"status":"Invalid Email, should in the form abc@xyz.com"},status=422)
         mobile = data.get('mobile')
-        if not (mobile.isnumeric() and len(mobile) == 10):
+        if mobile is None or not (mobile.isnumeric() and len(mobile) == 10):
             return JsonResponse({"status":"Invalid Phone, shoud be of 10 digits and numeric"},status=422)
         passwd_1 = data.get('passwd1')
         passwd_2 = data.get('passwd2')
         if not (passwd_1 and passwd_2):
             return JsonResponse({"status":"Both passwords are required"},status=422)
         if passwd_1 != passwd_2:
+            print('err in Password')
             return JsonResponse({"status":"passwords do not match"}, status=409)
         if not bool(re.match(r"^(?=.*[A-Z])(?=.*[!@#$&*])(?=.*[0-9])(?=.*[a-z]).{8,16}$",passwd_1)):
+            print('err in Password')
             return JsonResponse({"status":"Weak Password, should include an upper case, a lower case, a number, an special Symbol and should be of length between 8 to 16"},status=400)
         gender = data.get('gender')
-        if not gender:
-            return JsonResponse({'status':'GENDER is required'},status=422)
+        if gender is None or gender not in MyUser.choices_of_gender.keys():
+            return JsonResponse({'status':'Gender is invalid'},status=422)
+        # gender = list(Patient.choices_of_gender.keys())[list(Patient.choices_of_gender.values()).index(gender)]        
         address = data.get('address')
         if not address:
-            return JsonResponse({'status':'ADDRESS is required'},status=422)
+            return JsonResponse({'status':'Address is required'},status=422)
         city = data.get('city')
-        if not city:
-            return JsonResponse({'status':'CITY is required'},status=422)
+        if not city or (len(city) > 20 or len(city) < 2):
+            print('err in City')
+            return JsonResponse({'status':'City is invalid'},status=422)
         state = data.get('state')
-        if not state:
-            return JsonResponse({'status':'STATE is required'},status=422)
+        if not state or len(state) > 30:
+            print('err in state')
+            return JsonResponse({'status':'State is required'},status=422)
         pincode = data.get('pincode')
-        if not pincode:
-            return JsonResponse({'status':'PINCODE is required'},status=422)
+        if pincode:
+            if len(pincode) != 6:
+                return JsonResponse({'status':'Pincode is invalid'},status=422)
+        else:
+            pincode = None
         dob = data.get('dob')
         if not dob:
             return JsonResponse({'status':'DOB is required'},status=422)
+        if not bool(re.match(r'^([20]{2}|[19]{2})?[0-9]{2}(-)(1[0-2]|0?[1-9])\2(3[01]|[12][0-9]|0?[1-9])$',dob)):
+            return JsonResponse({'status':'Date of birth is invalid'},status=422)
         dob = dob.split('-')
         dob = date(int(dob[0]),int(dob[1]),int(dob[2]))
+        age = datetime.today.year - dob.year
         marital_status = data.get('maritalStatus')
-        degree = data.get('degree')
-        if not degree:
-            return JsonResponse({'status':'DEGREE is required'},status=422)
-        specialization = data.get('specialization')
-        if not specialization:
-            return JsonResponse({'status':'SPECIALIZATION is required'},status=422)
-        experience = int(data.get('experience'))
-        if not experience:
-            return JsonResponse({'status':'EXPERIENCE is required'},status=422)
+        if marital_status not in MyUser.choices_of_marital_status.keys():
+            return JsonResponse({'status':'Invalid marital status'},status=422)
+        # if not degree:
+        #     return JsonResponse({'status':'DEGREE is required'},status=422)
+        # change 1
+        specialization_id = data.get('specialization')
+        print(specialization_id)
+        if not specialization_id or not Specialization.objects.filter(id=specialization_id).exists():
+            return JsonResponse({'status':'Invalid Specialization ID'},status=422)
+        experience = data.get('experience')
+        if not experience or (int(experience) < 2 and age-int(experience) >= 24):
+            return JsonResponse({'status':'Experience is invalid'},status=422)
         doc_img = request.FILES.get('file')
         if not doc_img:
-            return JsonResponse({'status':'DOCTOR IMAGE is required'},status=422)
+            return JsonResponse({'status':'Doctor Image is required'},status=422)
         ext = doc_img.name.split('.')[-1]
         content_type = doc_img.content_type
         mime_type = magic.from_buffer(doc_img.read(1024), mime=True)
@@ -191,8 +216,10 @@ def doctor_registration(request):
             return JsonResponse({'status':'invalid image mime-type'},status=422)
         if MyUser.objects.filter(email=e_mail).exists():
             return JsonResponse({"status":"User already exists with this email"},status=409)
-        doc = Doctor(first_name=first_name,last_name=last_name,email=e_mail,password=passwd_1,phone_number=mobile,gender=gender,address=address,dob=dob,marital_status=marital_status,pincode=pincode,degree=degree,specialization=specialization,experience=experience,doc_img=doc_img,city=city,state=state)
+        doc = Doctor(first_name=first_name,last_name=last_name,email=e_mail,password=passwd_1,phone_number=mobile,gender=gender,address=address,dob=dob,marital_status=marital_status,pincode=pincode,specialization_id=specialization_id,experience=experience,doc_img=doc_img,city=city,state=state)
         doc.save()
+        User = authenticate(email=e_mail,password=passwd_1)
+        login(request,User)
         return JsonResponse({'status':'Doctor registered Succesfully','route':'/doctor/drpendingAppointments'})
     return JsonResponse({"status":"Invalid request method"},status=405)
 
@@ -245,7 +272,8 @@ def info(request):
                 else:
                     pat_lsit = Patient.objects.filter(id=pat_id).values('id','first_name','last_name','email','phone_number','gender','address','city','state','pincode','dob','marital_status','emergency_contact','weight','height','is_daibitic','blood_grp','allergy','med_issue')
                     return JsonResponse(list(pat_lsit),safe=False)
-        docs = Doctor.objects.filter(is_deleted=0).values('first_name','last_name','doc_img','degree','specialization','experience','doc_fee','id')
+        # change 2
+        docs = Doctor.objects.filter(is_deleted=0).values('first_name','last_name','doc_img','specialization__degree','specialization__speciality','experience','doc_fee','id')
         return JsonResponse(list(docs),safe=False)
 
 def side_panel(request):
@@ -297,9 +325,9 @@ def manage_appointments(request):
             if request.user.is_patient:
                 requested_status = request.GET.get('status')
                 if requested_status:
-                    data = Appointments.objects.filter(patient_id=request.user.id,status=requested_status).order_by('-request_date').values('doctor__first_name','doctor__last_name','doctor__doc_fee','prefered_date','status','symptoms','btn_class','id')
+                    data = Appointments.objects.filter(patient_id=request.user.id,status=requested_status).order_by('-request_date').values('doctor__first_name','doctor__last_name','doctor__doc_fee','prefered_date','status','symptoms','id')
                 else:
-                    data = Appointments.objects.filter(patient_id=request.user.id).order_by('-request_date').values('doctor__first_name','doctor__last_name','doctor__doc_fee','prefered_date','status','symptoms','btn_class','id')
+                    data = Appointments.objects.filter(patient_id=request.user.id).order_by('-request_date').values('doctor__first_name','doctor__last_name','doctor__doc_fee','prefered_date','status','symptoms','id')
                 return JsonResponse(list(data),safe=False)
             elif request.user.is_superuser:
                 requested_status = request.GET.get('status')
@@ -375,7 +403,7 @@ def manage_appointments(request):
                     return JsonResponse({'status':"You can't update this appointment"},status=422)
                 if updated_status.title() == 'Request Initiated':
                     appoint.status = updated_status.title()
-                    appoint.btn_class = 'btn-danger'
+                    # appoint.btn_class = 'btn-danger'
                     appoint.admin_verf = True
                     appoint.admin_approval_datetime = datetime.now()
                     appoint.save()
@@ -388,7 +416,7 @@ def manage_appointments(request):
                     return JsonResponse({'status':'Status updated successfully'})
                 if updated_status == 'Rejected':
                     appoint.status = updated_status
-                    appoint.btn_class = 'd-none'
+                    # appoint.btn_class = 'd-none'
                     appoint.admin_verf = True
                     appoint.admin_approval_datetime = datetime.now()
                     remark = data.get('remark')
@@ -420,7 +448,7 @@ def manage_appointments(request):
                     return JsonResponse({'status':"You can't update this appointment"},status=422)
                 if updated_status == 'Confirmed':
                     appoint.status = updated_status
-                    appoint.btn_class = 'd-none'
+                    # appoint.btn_class = 'd-none'
                     appoint.doc_verf = True
                     appoint.doctor_approval_datetime = datetime.now()
                     appoint.save()
@@ -433,7 +461,7 @@ def manage_appointments(request):
                     return JsonResponse({'status':'Status updated successfully'})
                 if updated_status == 'Prescribed':
                     appoint.status = updated_status
-                    appoint.btn_class = 'd-none'
+                    # appoint.btn_class = 'd-none'
                     appoint.doc_verf = True
                     appoint.prescribed_datetime = datetime.now()
                     appoint.save()
@@ -466,7 +494,7 @@ def manage_appointments(request):
                     return JsonResponse({'status':'Status updated successfully'})
                 if updated_status == 'Refunded':
                     appoint.status = updated_status
-                    appoint.btn_class = 'd-none'
+                    # appoint.btn_class = 'd-none'
                     appoint.doc_verf = True
                     appoint.doctor_approval_datetime = datetime.now()
                     remark = data.get('remark')

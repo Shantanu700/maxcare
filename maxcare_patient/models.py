@@ -129,10 +129,24 @@ class DoctorManager(models.Manager):
         queryset = queryset.filter(type = MyUser.Types.DOCTOR) 
         return queryset
 
+class Specialization(models.Model):
+    degree = models.CharField(max_length=50,unique=False, default='MBBS')
+    speciality = models.CharField(max_length=50)
+
+
 class Doctor(MyUser):
+    choices_of_degree = {
+        'MBBS':'Bachelor of Medicine, Bachelor of Surgery',
+        'BDS':'Bachelor of Dental Surgery',
+        'BAMS':'Bachelor of Ayurvedic Medicine and Surgery',
+        'BUMS':'Bachelor of Unani Medicine and Surgery',
+        'BHMS':'Bachelor of Homeopathy Medicine and Surgery',
+        'BYNS':'Bachelor of Yoga and Naturopathy Sciences',
+        'B.V.Sc & AH':'Bachelor of Veterinary Sciences and Animal Husbandry',
+    }
     doctor_details = models.OneToOneField(MyUser,parent_link=True, on_delete=models.CASCADE)
-    degree = models.CharField(max_length=50, null=False, blank=False)
-    specialization = models.CharField(max_length=50, null=False, blank=False)
+    # degree = models.CharField(max_length=50, null=False, blank=False, choices=choices_of_degree)
+    specialization = models.ForeignKey(Specialization, on_delete=models.RESTRICT, default=1)
     experience = models.IntegerField(validators=[MinValueValidator(2)])
     doc_img = models.ImageField(max_length=500,upload_to='doctors')
     doc_fee = models.IntegerField(default=2000)
@@ -168,7 +182,7 @@ class Appointments(models.Model):
     admin_approval_datetime = models.DateTimeField(null=True)
     doctor_approval_datetime = models.DateTimeField(null=True)
     prescribed_datetime = models.DateTimeField(null=True)
-    btn_class = models.CharField(max_length=50,default='d-none')
+    # btn_class = models.CharField(max_length=50,default='d-none')
     rejection_remark = models.TextField(max_length=510,null=True)
 
 class sidebar(models.Model):
@@ -180,6 +194,9 @@ class sidebar(models.Model):
 
     class Meta:
         unique_together = ('visibility','priority')
+
+
+
 
 class Precription(models.Model):
     medicine_name = models.CharField(max_length=100)

@@ -16,6 +16,8 @@ import os
 from django.shortcuts import redirect,render
 from datetime import date,datetime,timedelta
 from django_renderpdf.helpers import render_pdf 
+import razorpay
+
 
 def patient_registration(request):
     if request.method == 'GET':
@@ -123,7 +125,8 @@ def doctor_registration(request):
         degree = request.GET.get('degree')
         data_choices_of_degree = list(Doctor.choices_of_degree.keys())
         if degree is None:
-            return JsonResponse({'degree':data_choices_of_degree})
+            data_choices_of_specialization = list(Specialization.objects.all().values('id','speciality'))
+            return JsonResponse({'degree':data_choices_of_degree,'specialization':data_choices_of_specialization})
         data_choices_of_specialization = list(Specialization.objects.filter(degree=degree).values('id','speciality'))
         return JsonResponse({'degree':data_choices_of_degree,'specialization':data_choices_of_specialization})
     if request.method == 'POST':
@@ -272,6 +275,13 @@ def info(request):
                 else:
                     pat_lsit = Patient.objects.filter(id=pat_id).values('id','first_name','last_name','email','phone_number','gender','address','city','state','pincode','dob','marital_status','emergency_contact','weight','height','is_daibitic','blood_grp','allergy','med_issue')
                     return JsonResponse(list(pat_lsit),safe=False)
+            if request.user.is_patient:
+                special_id = request.GET.get('id')
+                if special_id is not None:
+                    if Specialization.objects.filter(id=special_id).exists():
+                        docs = Doctor.objects.filter(is_deleted=0,specialization_id=special_id).values('first_name','last_name','doc_img','specialization__degree','specialization__speciality','experience','doc_fee','id')
+                        return JsonResponse(list(docs),safe=False)
+
         # change 2
         docs = Doctor.objects.filter(is_deleted=0).values('first_name','last_name','doc_img','specialization__degree','specialization__speciality','experience','doc_fee','id')
         return JsonResponse(list(docs),safe=False)
@@ -388,6 +398,7 @@ def manage_appointments(request):
     if request.method == 'PUT': 
         if request.user.is_authenticated:
             if request.user.is_superuser:
+
                 data = json.loads(request.body)
                 print(data)
                 appo_id = data.get('id')

@@ -455,7 +455,7 @@ def manage_appointments(request):
                 if not Appointments.objects.filter(id=appo_id).exists():
                     return JsonResponse({'status':'Appointment for requested id not found'},status=404)
                 appoint = Appointments.objects.get(id=appo_id)
-                if appoint.status not in ['Paid']:
+                if appoint.status not in ['Paid','Confirmed','Prescribed']:
                     return JsonResponse({'status':"You can't update this appointment"},status=422)
                 if updated_status == 'Confirmed':
                     appoint.status = updated_status
@@ -574,21 +574,9 @@ def manage_prescription(request):
 
 def test(request):
     if request.method == 'GET':
-        # page_no = request.GET.get('page_number')
-        # data = Appointments.objects.filter(status='Pending').values('id','patient__first_name','patient__last_name','doctor__first_name','doctor__last_name','prefered_date','status','symptoms','request_date').order_by('-request_date')
-        # paginator = Paginator(data, 25)
-        # page_obj = paginator.page(page_no)
-        # print(page_obj.object_list, paginator.num_pages)
-        # next_page = page_obj.next_page_number() if page_obj.has_next() else None
-        # prev_page = page_obj.previous_page_number() if page_obj.has_previous() else None
-        # print(prev_page, next_page)
-        # return JsonResponse({'previous page':prev_page,'next page':next_page,'total_no_of_pages':paginator.num_pages,'data':list(page_obj.object_list),'no_of_records':len(list(page_obj.object_list))})
-        subject = "hello"
-        from_email = "max.care13524@gmail.com"
-        to = "max.care13524@gmail.com"
-        text_content = "This is an important message."
-        html_content = "<p>This is an <strong>important</strong> message.</p>"
-        msg = EmailMultiAlternatives(subject, text_content, from_email, [to])
-        msg.attach_alternative(html_content, "text/html")
-        msg.send()
-        return JsonResponse({"status":"mail sent"},status=400)
+        client = razorpay.Client(auth=("rzp_test_T6aKcrW24ZWxWH","jmZvthgVafBRdL9IFcSI46iq"))
+        client.set_app_details({"title" : "MaxCare", "version" : "1.1.1"})
+        data = { "amount": 500, "currency": "INR", "receipt": "order_rcptid_11" }
+        payment = client.order.create(data=data)
+        print(payment)
+        return JsonResponse({'status':'test'})
